@@ -88,21 +88,29 @@ public class UDP_Client : MonoBehaviour
         }
         state = NetworkConnection.Connecting;
 
-
-        remoteEndPoint = new IPEndPoint(IPAddress.Parse(hostIP), port);
-        //receive일땐
-        socket = new UdpClient(remoteEndPoint);
-
-        //Send일땐
-        //socket = new UdpClient();
-        //socket.Connect(listenIpEndPoint);  
+        try
+        {
 
 
-        isApplicationQuit = false;
-        socketReady = true;
+            remoteEndPoint = new IPEndPoint(IPAddress.Parse(hostIP), port);
+            //receive일땐
+            socket = new UdpClient(remoteEndPoint);
 
-        //SendMessages();
-        ReceiveMessages();
+            //Send일땐
+            //socket = new UdpClient();
+            //socket.Connect(listenIpEndPoint);  
+
+
+            isApplicationQuit = false;
+            socketReady = true;
+
+            //SendMessages();
+            ReceiveMessages();
+        }  
+        catch (SocketException ex)
+        {
+            Debug.Log(ex.Message);
+        }
 
     }
 

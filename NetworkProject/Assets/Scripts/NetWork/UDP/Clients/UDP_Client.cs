@@ -21,9 +21,14 @@ using UnityEngine.UI;
 
 public class UDP_Client : MonoBehaviour
 {
-    public enum UDP_portType { };
+    public enum NetworkConnection { None, Connecting, Success, Fail };
+    public NetworkConnection state = NetworkConnection.None;
+
     protected bool socketReady = false;
     protected UdpClient socket;
+
+    protected Thread sendThread;
+    private bool isApplicationQuit = false;
 
     //receive
     protected byte[] receiveBuffer;
@@ -38,8 +43,14 @@ public class UDP_Client : MonoBehaviour
         }
     }
 
-    public string hostIP = "192.168.0.19"; //175.115.182.120
-    public int port;
+    //send
+    protected Queue<string> sendData = new Queue<string>();
+    private float sendIntervalTime = 1.0f;
+    protected float time = 0.0f;
+
+    //info
+    public string hostIP = string.Empty;
+    public int port = 0;
     private IPEndPoint remoteEndPoint;
 
     #region Parsing
@@ -69,17 +80,33 @@ public class UDP_Client : MonoBehaviour
     {
         //이미 연결했다면 무시
         if (socketReady) return;
-        socketReady = true;
+
+        if (hostIP == string.Empty || port == 0)
+        {
+            state = NetworkConnection.Fail;
+            return;
+        }
+        state = NetworkConnection.Connecting;
+
 
         remoteEndPoint = new IPEndPoint(IPAddress.Parse(hostIP), port);
-
+        //receive일땐
         socket = new UdpClient(remoteEndPoint);
-        //socket.Connect(listenIpEndPoint);
 
+        //Send일땐
+        //socket = new UdpClient();
+        //socket.Connect(listenIpEndPoint);  
+
+
+        isApplicationQuit = false;
+        socketReady = true;
+
+        //SendMessages();
         ReceiveMessages();
 
     }
 
+    #region Receive
     protected void ReceiveMessages()
     {
         try
@@ -90,6 +117,7 @@ public class UDP_Client : MonoBehaviour
         catch (Exception e)
         {
             Debug.Log("ReceiveThrad error : " + e.Message);
+            CloseSocket();
         }
     }
     protected void ReceiveCallback(IAsyncResult _result)
@@ -101,8 +129,12 @@ public class UDP_Client : MonoBehaviour
             if (receiveBuffer.Length <= 0 /*|| RemoteIpEndPoint.Address.ToString().Equals(Network.player.ipAddress)*/)
             {
                 Debug.Log("byte length = " + receiveBuffer.Length);
+                CloseSocket();
                 return;
             }
+            byte[] data = new byte[receiveBuffer.Length];
+            Array.Copy(receiveBuffer, data, receiveBuffer.Length);
+
             ReceiveData = Encoding.ASCII.GetString(receiveBuffer);
             Debug.Log("Receive : " + ReceiveData);
 
@@ -111,24 +143,76 @@ public class UDP_Client : MonoBehaviour
         catch (Exception e)
         {
             Debug.Log("Receive Error" + e.Message);
+            CloseSocket();
+        }
+    }
+    #endregion
+
+    #region Send
+    public void OnIncomingData(InputField input)
+    {
+        if (socketReady)
+        {
+            sendData.Enqueue(input.text);
         }
     }
 
+    private void SendMessages()
+    {
+        sendThread = new Thread(() => SendCallback(sendData));
+        sendThread.IsBackground = false;
+        sendThread.Start();
+    }
 
+    private void SendCallback(object datas)
+    {
+        Queue<string> dataQueue = (Queue<string>)datas;
+        int millsSec = (int)(sendIntervalTime * 1000);
+
+        //DateTime nextLoop = DateTime.Now;
+        //TimeSpan duration = new TimeSpan(0, 0, 0, 0, MS);
+
+        try
+        {
+            while (!isApplicationQuit)
+            {
+
+                if (dataQueue.Count > 0)
+                {
+                    //remoteEndPoint = new IPEndPoint(IPAddress.Parse(ip), port);
+                    //socket.Connect(remoteEndPoint);
+
+                    string msg = dataQueue.Dequeue();
+                    byte[] sendBuffer = Encoding.ASCII.GetBytes(msg);
+
+
+                    socket.Send(sendBuffer, sendBuffer.Length);
+                    Debug.Log("Send " + remoteEndPoint.Address.ToString() + " to " + msg);
+                }
+
+                Thread.Sleep(100);
+            }
+            //Debug.Log(isApplicationQuit.ToString());
+        }
+        catch (Exception e)
+        {
+            Debug.Log("sendThrad error : " + e.Message);
+        }
+    }
+    #endregion
 
 
     protected void CloseSocket()
     {
-        if (!socketReady)
+        if (socketReady)
         {
-            return;
+
+            socket.Dispose();
+            socket.Close();
         }
 
-        socket.Dispose();
-        socket.Close();
-        Debug.Log("socket close");
         socketReady = false;
-
+        state = NetworkConnection.Fail;
     }
 
     protected void OnApplicationQuit()

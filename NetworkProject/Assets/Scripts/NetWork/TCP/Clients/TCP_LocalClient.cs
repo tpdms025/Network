@@ -21,20 +21,20 @@ using UnityEngine.UI;
 public class TCP_LocalClient : MonoBehaviour
 {
     public enum PortType { WeatherData, SensorDataClient };
-    public enum ConnectionState { None, Connecting, Success, Fail };
+    public enum NetworkConnection { None, Connecting, Success, Fail };
+
+    public PortType _portType;
+    public NetworkConnection state = NetworkConnection.None;
 
 
     protected bool socketReady=false;
     protected TcpClient socket;
-
     protected NetworkStream stream;
 
+    //receive
     protected byte[] receiveBuffer;
     protected int dataBufferSize = 4096;
     protected Thread receiveThread;
-
-    public PortType _portType;
-    public ConnectionState state = ConnectionState.None;
 
     private string stringData;
     public string StringData
@@ -47,6 +47,7 @@ public class TCP_LocalClient : MonoBehaviour
         }
     }
 
+    //info
     public string hostIP; //175.115.182.120
     public int port;
 
@@ -94,9 +95,12 @@ public class TCP_LocalClient : MonoBehaviour
         //이미 연결했다면 무시
         if (socketReady) return;
 
-        //create the socket
+        if (hostIP == string.Empty || port == 0)
+        {
+            state = NetworkConnection.Fail;
+            return;
+        }
         socket = new TcpClient();
-
         Connect();
     }
 
@@ -104,14 +108,14 @@ public class TCP_LocalClient : MonoBehaviour
     {
         try
         {
-            state = ConnectionState.Connecting;
+            state = NetworkConnection.Connecting;
 
             socket.BeginConnect(hostIP, port, ConnectCallback, socket);
         }
         catch (SocketException ex)
         {
             Debug.Log("Connect error : " + ex.Message);
-            state = ConnectionState.Fail;
+            state = NetworkConnection.Fail;
 
         }
     }
@@ -121,16 +125,17 @@ public class TCP_LocalClient : MonoBehaviour
     {
         try
         {
-            state = ConnectionState.Success;
+            state = NetworkConnection.Success;
 
             socket.EndConnect(_result);
 
             if (!socket.Connected)
             {
-                Debug.Log("not connect");
+                state = NetworkConnection.Fail;
                 return;
             }
 
+            //Connect후로 꼭 넣기
             socketReady = true;
 
             //receiveThread = new Thread(new ThreadStart(Receive));
@@ -146,8 +151,7 @@ public class TCP_LocalClient : MonoBehaviour
         catch (SocketException ex)
         {
             Debug.Log("Connect error : " + ex.Message);
-            state = ConnectionState.Fail;
-
+            CloseSocket();
         }
     }
 
@@ -160,6 +164,7 @@ public class TCP_LocalClient : MonoBehaviour
             if (bytelength <= 0)
             {
                 Debug.Log("byte length = " + bytelength);
+                CloseSocket();
                 return;
                 
             }
@@ -175,8 +180,7 @@ public class TCP_LocalClient : MonoBehaviour
         catch (Exception e)
         {
             Debug.Log("Receive Error : " + e.Message);
-            state = ConnectionState.Fail;
-
+            CloseSocket();
         }
     }
 
@@ -209,16 +213,13 @@ public class TCP_LocalClient : MonoBehaviour
 
     private void CloseSocket()
     {
-        if(!socketReady)
+        if (socketReady)
         {
-            return;
+            stream.Close();
+            socket.Close();
         }
-
-        stream.Close();
-        socket.Close();
         socketReady = false;
-        state = ConnectionState.Fail;
-
+        state = NetworkConnection.Fail;
     }
 
     private void OnApplicationQuit()

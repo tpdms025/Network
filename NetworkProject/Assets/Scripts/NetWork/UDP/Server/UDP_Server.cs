@@ -139,6 +139,8 @@ public class UDP_Server : MonoBehaviour
             Log("server Socket error :" + ex.Message);
         }
     }
+
+    #region Send
     private void SendMessages()
     {
         sendThread = new Thread(() => SendCallback(sendData));
@@ -205,7 +207,9 @@ public class UDP_Server : MonoBehaviour
             Debug.Log("sendThrad error : " + e.Message);
         }
     }
+    #endregion
 
+    #region Receive
     private void ReceiveMessages()
     {
         try
@@ -240,6 +244,7 @@ public class UDP_Server : MonoBehaviour
             Log("Receive Error" + e.Message);
         }
     }
+    #endregion
 
     #region 비동기 Send (현재 사용안함)
 
@@ -291,6 +296,7 @@ public class UDP_Server : MonoBehaviour
 
     #endregion
 
+    //test용 button
     public void UdpStop()
     {
         CloseSocket();
@@ -300,11 +306,12 @@ public class UDP_Server : MonoBehaviour
     private void CloseSocket()
     {
         isApplicationQuit = true;
+        socketReady=false;
+
         if (socketReady)
         {
             socket.Dispose();
             socket.Close();
-            socketReady=false;
         }
     }
 
